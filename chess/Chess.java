@@ -1,9 +1,13 @@
+//Darshan Surti dps194
+//Krish Patel kap428
 package chess;
 
 import chess.ReturnPiece.PieceFile;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class Chess {
 
@@ -26,10 +30,7 @@ public class Chess {
 	 */
 	public static ReturnPlay play(String move) {
 
-		/* FILL IN THIS METHOD */
 		
-		/* FOLLOWING LINE IS A PLACEHOLDER TO MAKE COMPILER HAPPY */
-		/* WHEN YOU FILL IN THIS METHOD, YOU NEED TO RETURN A ReturnPlay OBJECT */
 		
 
 		ReturnPlay returnPlay = new ReturnPlay();
@@ -190,8 +191,7 @@ public class Chess {
 	 * This method should reset the game, and start from scratch.
 	 */
 	public static void start() {
-		/* FILL IN THIS METHOD */
-
+	
 		cPlayer = Player.white;
 		pieces = new ArrayList<>();
         pObjs = new HashMap<>();
@@ -341,43 +341,82 @@ public class Chess {
                                              Map<ReturnPiece, Piece> pieceMap,
                                              ReturnPiece kingPiece,
                                              Piece king,
-                                             ReturnPiece.PieceFile destFile) {
-        boolean isKingSide = destFile.ordinal() > kingPiece.pieceFile.ordinal();
-        ReturnPiece.PieceFile rookSourceFile = isKingSide ? ReturnPiece.PieceFile.h : ReturnPiece.PieceFile.a;
-        ReturnPiece.PieceFile rookDestFile = isKingSide ? ReturnPiece.PieceFile.f : ReturnPiece.PieceFile.d;
+                                             ReturnPiece.PieceFile targetFile) {
+        // Determine castling direction and setup positions
+        int castlingDirection = targetFile.ordinal() > kingPiece.pieceFile.ordinal() ? 1 : -1;
+        boolean isKingSideCastle = castlingDirection > 0;
         
-        // Find the rook to castle with
-		String rookFind = String.valueOf(rookSourceFile) + "" + kingPiece.pieceRank;
-        ReturnPiece rookPiece = getPiece(rookFind);
-        if (rookPiece == null) return false;
+        // Define rook positions
+        ReturnPiece.PieceFile rookStartPos = isKingSideCastle ? ReturnPiece.PieceFile.h : ReturnPiece.PieceFile.a;
+        ReturnPiece.PieceFile rookEndPos = isKingSideCastle ? ReturnPiece.PieceFile.f : ReturnPiece.PieceFile.d;
+        
+        // Locate the rook for castling
+        String rookLocation = rookStartPos.toString() + kingPiece.pieceRank;
+        ReturnPiece rookPiece = getPiece(rookLocation);
+        
+        // Validate rook presence and type
+        if (!isValidRook(rookPiece, pieceMap)) {
+            return false;
+        }
         
         Piece rook = pieceMap.get(rookPiece);
-        if (rook == null || !(rook instanceof Rook)) return false;
         
-
-        Player kingPlayer = kingPiece.pieceType.name().startsWith("W") ? Player.white : Player.black;
-
-        if (isSquareUnderAttack(boardPieces, pieceMap, kingPiece.pieceFile, kingPiece.pieceRank, kingPlayer)) {
+        // Determine the player's color
+        Player currentPlayer = kingPiece.pieceType.name().startsWith("W") ? Player.white : Player.black;
+        
+        // Check if path is safe for castling
+        if (!isCastlingPathSafe(boardPieces, pieceMap, kingPiece, currentPlayer, castlingDirection, targetFile)) {
             return false;
         }
         
-        int direction = isKingSide ? 1 : -1;
-        ReturnPiece.PieceFile middleFile = ReturnPiece.PieceFile.values()[kingPiece.pieceFile.ordinal() + direction];
-        if (isSquareUnderAttack(boardPieces, pieceMap, middleFile, kingPiece.pieceRank, kingPlayer)) {
-            return false;
-        }
-        
-        if (isSquareUnderAttack(boardPieces, pieceMap, destFile, kingPiece.pieceRank, kingPlayer)) {
-            return false;
-        }
-        
-        king.moveTo(destFile, kingPiece.pieceRank);
-        kingPiece.pieceFile = destFile;
-        
-        rook.moveTo(rookDestFile, kingPiece.pieceRank);
-        rookPiece.pieceFile = rookDestFile;
+        // Execute the castling move
+        performCastlingMove(king, kingPiece, rook, rookPiece, targetFile, rookEndPos);
         
         return true;
+    }
+
+    private static boolean isValidRook(ReturnPiece rookPiece, Map<ReturnPiece, Piece> pieceMap) {
+        if (rookPiece == null) {
+            return false;
+        }
+        Piece rook = pieceMap.get(rookPiece);
+        return rook != null && (rook instanceof Rook);
+    }
+
+    private static boolean isCastlingPathSafe(ArrayList<ReturnPiece> boardPieces,
+                                            Map<ReturnPiece, Piece> pieceMap,
+                                            ReturnPiece kingPiece,
+                                            Player currentPlayer,
+                                            int direction,
+                                            ReturnPiece.PieceFile targetFile) {
+        // Check if starting position is safe
+        if (isSquareUnderAttack(boardPieces, pieceMap, kingPiece.pieceFile, kingPiece.pieceRank, currentPlayer)) {
+            return false;
+        }
+        
+        // Check if passing square is safe
+        ReturnPiece.PieceFile midFile = ReturnPiece.PieceFile.values()[kingPiece.pieceFile.ordinal() + direction];
+        if (isSquareUnderAttack(boardPieces, pieceMap, midFile, kingPiece.pieceRank, currentPlayer)) {
+            return false;
+        }
+        
+        // Check if destination is safe
+        return !isSquareUnderAttack(boardPieces, pieceMap, targetFile, kingPiece.pieceRank, currentPlayer);
+    }
+
+    private static void performCastlingMove(Piece king,
+                                          ReturnPiece kingPiece,
+                                          Piece rook,
+                                          ReturnPiece rookPiece,
+                                          ReturnPiece.PieceFile kingTarget,
+                                          ReturnPiece.PieceFile rookTarget) {
+        // Move king
+        king.moveTo(kingTarget, kingPiece.pieceRank);
+        kingPiece.pieceFile = kingTarget;
+        
+        // Move rook
+        rook.moveTo(rookTarget, kingPiece.pieceRank);
+        rookPiece.pieceFile = rookTarget;
     }
 
 	private static boolean isSquareUnderAttack(ArrayList<ReturnPiece> boardPieces,
@@ -404,9 +443,14 @@ public class Chess {
 	private static boolean handlePawnPromotion(Map<ReturnPiece, Piece> pieceMap,
                                                ReturnPiece pawnPiece,
                                                String promotionPiece) {
+        if (promotionPiece == null || promotionPiece.trim().isEmpty()) {
+            promotionPiece = "Q"; // Default to Queen if no piece specified
+        }
+
+        String piece = promotionPiece.trim().toUpperCase();
+        boolean isWhite = pawnPiece.pieceType.name().startsWith("W");
         ReturnPiece.PieceType newType;
         Piece newPiece;
-        boolean isWhite = pawnPiece.pieceType.name().startsWith("W");
 
         // Default to queen if not specified or invalid
         switch (promotionPiece.toUpperCase()) {
@@ -466,31 +510,76 @@ public class Chess {
     }
 
 	private static boolean isCheckmate(ArrayList<ReturnPiece> boardPieces, Map<ReturnPiece, Piece> map, Player player) {
-        for (ReturnPiece piece : boardPieces) {
-            if ((player == Player.white && piece.pieceType.name().startsWith("W")) ||
-                (player == Player.black && piece.pieceType.name().startsWith("B"))) {
-                
-                Piece movingPiece = map.get(piece);
-                if (movingPiece == null) continue;
-                
-                for (ReturnPiece.PieceFile file : ReturnPiece.PieceFile.values()) {
-                    for (int rank = 1; rank <= 8; rank++) {
-                        if (movingPiece.isValid(boardPieces, file, rank)) {
-                            ArrayList<ReturnPiece> tempBoard = copyArray(boardPieces);
-                            Map<ReturnPiece, Piece> tempMap = new HashMap<>(map);
-                            ReturnPiece tempPiece = findPiece(tempBoard, piece.pieceFile, piece.pieceRank);
-                            if (tempPiece == null) continue;
-                            if (executeMove(tempBoard, tempMap, tempPiece, movingPiece, file, rank, new String[0])) {
-                                if (!isKingInCheck(tempBoard, tempMap, player)) {
-                                    return false;
-                                }
-                            }
-                        }
-                    }
+        // Get all pieces for the current player
+        List<ReturnPiece> currentPlayerPieces = getAllPlayerPieces(boardPieces, player);
+        
+        // Try each possible move for each piece
+        for (ReturnPiece currentPiece : currentPlayerPieces) {
+            if (!canPieceSaveKing(currentPiece, boardPieces, map, player)) {
+                continue;
+            }
+            return false; // Found at least one legal move that prevents checkmate
+        }
+        
+        // No legal moves found that prevent checkmate
+        return true;
+    }
+
+    private static List<ReturnPiece> getAllPlayerPieces(ArrayList<ReturnPiece> boardPieces, Player player) {
+        String colorPrefix = (player == Player.white) ? "W" : "B";
+        return boardPieces.stream()
+                .filter(piece -> piece.pieceType.name().startsWith(colorPrefix))
+                .collect(Collectors.toList());
+    }
+
+    private static boolean canPieceSaveKing(ReturnPiece currentPiece, 
+                                          ArrayList<ReturnPiece> boardPieces,
+                                          Map<ReturnPiece, Piece> map,
+                                          Player player) {
+        Piece activePiece = map.get(currentPiece);
+        if (activePiece == null) {
+            return false;
+        }
+
+        // Check all possible squares on the board
+        for (ReturnPiece.PieceFile targetFile : ReturnPiece.PieceFile.values()) {
+            if (tryMovesInRank(currentPiece, activePiece, targetFile, boardPieces, map, player)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    private static boolean tryMovesInRank(ReturnPiece currentPiece,
+                                        Piece activePiece,
+                                        ReturnPiece.PieceFile targetFile,
+                                        ArrayList<ReturnPiece> boardPieces,
+                                        Map<ReturnPiece, Piece> map,
+                                        Player player) {
+        // Try each rank for the current file
+        for (int targetRank = 1; targetRank <= 8; targetRank++) {
+            if (!activePiece.isValid(boardPieces, targetFile, targetRank)) {
+                continue;
+            }
+
+            // Create temporary board state
+            ArrayList<ReturnPiece> simulatedBoard = copyArray(boardPieces);
+            Map<ReturnPiece, Piece> simulatedMap = new HashMap<>(map);
+            ReturnPiece simulatedPiece = findPiece(simulatedBoard, currentPiece.pieceFile, currentPiece.pieceRank);
+            
+            if (simulatedPiece == null) {
+                continue;
+            }
+
+            // Try the move and check if it saves the king
+            if (executeMove(simulatedBoard, simulatedMap, simulatedPiece, activePiece, targetFile, targetRank, new String[0])) {
+                if (!isKingInCheck(simulatedBoard, simulatedMap, player)) {
+                    return true; // Found a legal move that prevents checkmate
                 }
             }
         }
-        return true;
+        return false;
     }
 
 	private static ReturnPiece findPiece(ArrayList<ReturnPiece> boardPieces,
